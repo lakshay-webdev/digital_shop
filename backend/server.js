@@ -26,6 +26,7 @@ app.use(
         process.env.ADMIN_URL,
         "http://localhost:3000",
         "http://localhost:3001",
+        "https://digital-shop-dnl8cmuna-lakshay3452s-projects.vercel.app",
       ].filter(Boolean);
 
       if (allowedOrigins.includes(origin)) {
@@ -69,7 +70,6 @@ app.use("/api/admin", require("./routes/admin"));
 app.use("/api/upload", require("./routes/upload"));
 app.use("/api/notifications", require("./routes/notifications"));
 app.use("/api", require("./routes/runSeed"));
-
 
 // Root Route
 app.get("/", (_req, res) =>

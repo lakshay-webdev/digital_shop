@@ -1,0 +1,22 @@
+{
+  "name": "digisho-ecommerce",
+  "version": "1.0.0",
+  "description": "DigiSho - Full-Stack Multi-Vendor eCommerce Platform",
+  "private": true,
+  "scripts": {
+    "dev":            "concurrently \"npm run dev:backend\" \"npm run dev:customer\" \"npm run dev:admin\"",
+    "dev:backend":    "cd backend && npm run dev",
+    "dev:customer":   "cd frontend-customer && npm run dev",
+    "dev:admin":      "cd admin-dashboard && npm run dev",
+    "install:all":    "cd backend && npm install && cd ../frontend-customer && npm install && cd ../admin-dashboard && npm install",
+    "build:customer": "cd frontend-customer && npm run build",
+    "build:admin":    "cd admin-dashboard && npm run build",
+    "seed":           "cd backend && npm run seed",
+    "start:backend":  "cd backend && npm start",
+    "start:customer": "cd frontend-customer && npm start",
+    "start:admin":    "cd admin-dashboard && npm start"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

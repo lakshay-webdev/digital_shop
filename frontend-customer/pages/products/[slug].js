@@ -60,6 +60,70 @@ function RatingBar({ label, pct }) {
   );
 }
 
+function RelatedProductCard({ product }) {
+  const addItem = useCartStore((s) => s.addItem);
+  const toggle = useWishlistStore((s) => s.toggle);
+  const isWishlisted = useWishlistStore((s) => s.isWishlisted);
+
+  const discount = product.mrp && product.mrp > product.price
+    ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
+    : 0;
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group flex flex-col">
+      <Link href={`/products/${product.slug}`} className="relative block aspect-square bg-gray-50 overflow-hidden">
+        <Image
+          src={product.thumbnail || "/placeholder.png"}
+          alt={product.name}
+          fill
+          className="object-contain p-4 group-hover:scale-105 transition-transform duration-300"
+        />
+        {discount > 0 && (
+          <span className="absolute top-2 left-2 bg-accent text-white text-[10px] font-bold px-2 py-0.5 rounded-lg">
+            -{discount}%
+          </span>
+        )}
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            const added = toggle(product);
+            toast(added ? "Added to wishlist ♥" : "Removed from wishlist", { icon: added ? "❤️" : "🤍" });
+          }}
+          className="absolute top-2 right-2 w-8 h-8 bg-white rounded-full shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-sm hover:scale-110"
+        >
+          {isWishlisted(product._id) ? "❤️" : "🤍"}
+        </button>
+      </Link>
+
+      <div className="p-3 flex flex-col flex-1">
+        <p className="text-[10px] text-gray-400 uppercase font-semibold tracking-wide mb-0.5">{product.brand}</p>
+        <Link href={`/products/${product.slug}`}>
+          <h3 className="text-sm font-semibold text-gray-800 line-clamp-2 leading-tight mb-2 hover:text-accent transition-colors">
+            {product.name}
+          </h3>
+        </Link>
+        <div className="flex items-center gap-1 mb-2">
+          <StarRating rating={product.avgRating} size="text-xs" />
+          <span className="text-[10px] text-gray-400">({product.numReviews || 0})</span>
+        </div>
+        <div className="flex items-baseline gap-2 mb-3 mt-auto">
+          <span className="text-base font-bold text-accent">{fmt(product.price)}</span>
+          {product.mrp && product.mrp > product.price && (
+            <span className="text-xs text-gray-400 line-through">{fmt(product.mrp)}</span>
+          )}
+        </div>
+        <button
+          onClick={() => { addItem(product, 1); toast.success("Added to cart! 🛒"); }}
+          disabled={!product.inStock}
+          className="w-full bg-primary text-white rounded-xl py-2 text-xs font-bold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {product.inStock ? "🛒 Add to Cart" : "Out of Stock"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function ProductPage() {
   const router = useRouter();
   const { slug } = router.query;
@@ -80,6 +144,15 @@ export default function ProductPage() {
     queryKey: ["product", slug],
     queryFn: () => productAPI.getOne(slug).then((r) => r.data.product),
     enabled: !!slug,
+  });
+
+  const { data: relatedData } = useQuery({
+    queryKey: ["related-products", product?.category?.name, product?._id],
+    queryFn: () =>
+      productAPI
+        .getAll({ category: product.category?.name, limit: 8 })
+        .then((r) => r.data.products.filter((p) => p._id !== product._id).slice(0, 8)),
+    enabled: !!product?.category?.name,
   });
 
   useEffect(() => {
@@ -135,11 +208,8 @@ export default function ProductPage() {
   };
 
   const ratingDist = [
-    { label: 5, pct: 62 },
-    { label: 4, pct: 20 },
-    { label: 3, pct: 10 },
-    { label: 2, pct: 5 },
-    { label: 1, pct: 3 },
+    { label: 5, pct: 62 }, { label: 4, pct: 20 },
+    { label: 3, pct: 10 }, { label: 2, pct: 5 }, { label: 1, pct: 3 },
   ];
 
   return (
@@ -161,7 +231,6 @@ export default function ProductPage() {
           </nav>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
-
             <div className="space-y-3">
               <div className="relative w-full aspect-square bg-gray-50 rounded-2xl overflow-hidden border border-gray-100 group">
                 <Image src={images[selectedImage]?.url || "/placeholder.png"} alt={product.name} fill className="object-contain p-6 transition-transform duration-300 group-hover:scale-105" priority />
@@ -186,20 +255,17 @@ export default function ProductPage() {
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-widest font-semibold mb-1">{product.brand}</p>
               <h1 className="font-display text-2xl lg:text-3xl font-bold text-primary leading-tight mb-3">{product.name}</h1>
-
               <div className="flex items-center gap-3 mb-4 flex-wrap">
                 <StarRating rating={product.avgRating} />
                 <span className="text-sm text-gray-500">{product.avgRating?.toFixed(1)} ({product.numReviews?.toLocaleString() || 0} reviews)</span>
                 {product.numReviews > 0 && <button onClick={() => setActiveTab("reviews")} className="text-xs text-accent hover:underline">Read reviews →</button>}
               </div>
-
               <div className="flex items-baseline gap-3 mb-1 flex-wrap">
                 <span className="text-3xl font-bold text-accent">{fmt(product.price)}</span>
                 {product.mrp && product.mrp > product.price && <span className="text-lg text-gray-400 line-through">{fmt(product.mrp)}</span>}
                 {product.discount > 0 && <span className="bg-green-50 text-green-700 text-sm font-bold px-2 py-0.5 rounded-lg">{product.discount}% OFF</span>}
               </div>
               {savings > 0 && <p className="text-sm text-green-600 font-medium mb-4">You save {fmt(savings)} on this order!</p>}
-
               <div className="flex items-center gap-2 mb-4">
                 {inStock ? (
                   <><span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" /><span className="text-sm font-medium text-green-700">{lowStock ? `Only ${product.stock} left!` : "In Stock"}</span></>
@@ -207,7 +273,6 @@ export default function ProductPage() {
                   <><span className="w-2 h-2 bg-red-500 rounded-full" /><span className="text-sm font-medium text-red-600">Out of Stock</span></>
                 )}
               </div>
-
               <div className="grid grid-cols-3 gap-2 mb-5">
                 {[{ icon: "🚚", label: "Free Delivery" }, { icon: "↩️", label: "10-Day Return" }, { icon: "🛡️", label: "1 Year Warranty" }].map(({ icon, label }) => (
                   <div key={label} className="bg-green-50 border border-green-100 rounded-xl p-2 text-center">
@@ -216,7 +281,6 @@ export default function ProductPage() {
                   </div>
                 ))}
               </div>
-
               {product.variants?.length > 0 && (
                 <div className="mb-4">
                   <p className="text-sm font-semibold text-gray-700 mb-2">Select Variant:</p>
@@ -227,7 +291,6 @@ export default function ProductPage() {
                   </div>
                 </div>
               )}
-
               <div className="flex items-center gap-4 mb-5">
                 <p className="text-sm font-semibold text-gray-700">Qty:</p>
                 <div className="flex items-center border-2 border-gray-200 rounded-xl overflow-hidden">
@@ -236,12 +299,10 @@ export default function ProductPage() {
                   <button onClick={() => setQty(qty + 1)} className="px-4 py-2 hover:bg-gray-50 text-lg font-bold transition-colors">+</button>
                 </div>
               </div>
-
               <div className="flex gap-3 flex-wrap mb-4">
                 <button onClick={handleAddToCart} disabled={!inStock} className="flex-1 bg-primary text-white rounded-xl py-3.5 font-bold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">🛒 Add to Cart</button>
                 <button onClick={handleBuyNow} disabled={!inStock} className="flex-1 bg-accent text-white rounded-xl py-3.5 font-bold hover:bg-red-600 transition-colors shadow-lg shadow-accent/20 disabled:opacity-50 disabled:cursor-not-allowed">⚡ Buy Now</button>
               </div>
-
               <div className="flex gap-2">
                 <button onClick={handleWishlist} className={`flex-1 border-2 rounded-xl py-2.5 text-sm font-semibold flex items-center justify-center gap-2 transition-all ${isWishlisted(product._id) ? "border-red-200 bg-red-50 text-accent" : "border-gray-200 hover:border-accent text-gray-600"}`}>
                   {isWishlisted(product._id) ? "❤️ Wishlisted" : "🤍 Wishlist"}
@@ -253,19 +314,18 @@ export default function ProductPage() {
             </div>
           </div>
 
+          {/* Tabs */}
           <div className="mt-12">
             <div className="flex gap-1 border-b border-gray-100 mb-6">
               {[{ key: "description", label: "📄 Description" }, { key: "specs", label: "📋 Specifications" }, { key: "reviews", label: `⭐ Reviews (${product.reviews?.length || 0})` }].map(({ key, label }) => (
                 <button key={key} onClick={() => setActiveTab(key)} className={`px-5 py-3 text-sm font-semibold transition-all border-b-2 -mb-px ${activeTab === key ? "border-accent text-accent" : "border-transparent text-gray-500 hover:text-gray-700"}`}>{label}</button>
               ))}
             </div>
-
             {activeTab === "description" && (
               <div className="prose prose-sm max-w-none text-gray-600 leading-relaxed">
                 <p>{product.description || "No description available."}</p>
               </div>
             )}
-
             {activeTab === "specs" && (
               <div className="max-w-2xl">
                 {product.specifications?.length > 0 ? (
@@ -282,7 +342,6 @@ export default function ProductPage() {
                 ) : <p className="text-gray-400 text-sm">No specifications available.</p>}
               </div>
             )}
-
             {activeTab === "reviews" && (
               <div className="grid lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-1">
@@ -324,6 +383,26 @@ export default function ProductPage() {
               </div>
             )}
           </div>
+
+          {/* Related Products */}
+          {relatedData?.length > 0 && (
+            <div className="mt-16">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="font-display text-2xl font-bold text-primary">Related Products</h2>
+                  <p className="text-sm text-gray-400 mt-1">More from {product.category?.name}</p>
+                </div>
+                <Link href={`/products?category=${product.category?.name}`} className="text-sm text-accent font-semibold hover:underline">
+                  View All →
+                </Link>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {relatedData.map((p) => (
+                  <RelatedProductCard key={p._id} product={p} />
+                ))}
+              </div>
+            </div>
+          )}
 
         </div>
       </Layout>

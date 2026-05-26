@@ -17,15 +17,15 @@ const CATEGORIES = [
 
 export default function Navbar() {
   const router = useRouter();
-  const [search, setSearch]             = useState("");
+  const [search, setSearch]                   = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const searchRef  = useRef(null);
+  const [userMenuOpen, setUserMenuOpen]       = useState(false);
+  const searchRef   = useRef(null);
   const userMenuRef = useRef(null);
 
-  const { items, openCart }  = useCartStore();
-  const { user, logout }     = useAuthStore();
-  const { items: wishlist }  = useWishlistStore();
+  const { items, openCart } = useCartStore();
+  const { user, logout }    = useAuthStore();
+  const { items: wishlist } = useWishlistStore();
 
   const itemCount      = items.reduce((s, i) => s + i.qty, 0);
   const activeCategory = router.query.category || "";
@@ -37,6 +37,7 @@ export default function Navbar() {
     staleTime: 0,
   });
 
+  // Close suggestions on outside click
   useEffect(() => {
     const handler = (e) => {
       if (searchRef.current && !searchRef.current.contains(e.target))
@@ -46,6 +47,7 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Close user menu on outside click
   useEffect(() => {
     const handler = (e) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target))
@@ -55,14 +57,28 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Close user menu on route change
   useEffect(() => { setUserMenuOpen(false); }, [router.pathname]);
+
+  // ✅ FIX: suggestions close + search clear on route change
+  useEffect(() => {
+    setShowSuggestions(false);
+    setSearch("");
+  }, [router.asPath]);
 
   const handleSearch = (e) => {
     e.preventDefault();
     if (search.trim()) {
-      router.push(`/products?search=${encodeURIComponent(search.trim())}`);
       setShowSuggestions(false);
+      router.push(`/products?search=${encodeURIComponent(search.trim())}`);
     }
+  };
+
+  // ✅ FIX: Suggestion click — use router.push instead of relying on Link alone
+  const handleSuggestionClick = (slug) => {
+    setShowSuggestions(false);
+    setSearch("");
+    router.push(`/products/${slug}`);
   };
 
   return (
@@ -77,7 +93,7 @@ export default function Navbar() {
             Digi<span className="text-primary">Sho</span>
           </Link>
 
-          {/* Search bar — hidden on mobile (shown in row 2), visible on md+ */}
+          {/* Search bar — desktop */}
           <div className="hidden md:flex flex-1 max-w-2xl relative" ref={searchRef}>
             <form
               onSubmit={handleSearch}
@@ -96,18 +112,27 @@ export default function Navbar() {
               </button>
             </form>
 
+            {/* ✅ Desktop Suggestions */}
             {showSuggestions && suggestions?.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-xl shadow-lg overflow-hidden z-50">
                 {suggestions.map((p) => (
-                  <Link
+                  <button
                     key={p._id}
-                    href={`/products/${p.slug}`}
-                    onClick={() => { setShowSuggestions(false); setSearch(""); }}
-                    className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors"
+                    onMouseDown={() => handleSuggestionClick(p.slug)}
+                    className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors w-full text-left"
                   >
-                    <span className="text-xs text-gray-500 flex-1">{p.name}</span>
-                    <span className="text-sm font-semibold text-accent">₹{p.price?.toLocaleString("en-IN")}</span>
-                  </Link>
+                    {p.thumbnail && (
+                      <img
+                        src={p.thumbnail}
+                        alt={p.name}
+                        className="w-8 h-8 object-contain rounded-md bg-gray-50 flex-shrink-0"
+                      />
+                    )}
+                    <span className="text-xs text-gray-700 flex-1 line-clamp-1">{p.name}</span>
+                    <span className="text-sm font-semibold text-accent flex-shrink-0">
+                      ₹{p.price?.toLocaleString("en-IN")}
+                    </span>
+                  </button>
                 ))}
               </div>
             )}
@@ -116,7 +141,7 @@ export default function Navbar() {
           {/* Actions — right side */}
           <div className="flex items-center gap-0.5 md:gap-1 ml-auto">
 
-            {/* User — desktop: full dropdown | mobile: icon only */}
+            {/* User */}
             {user ? (
               <div className="relative" ref={userMenuRef}>
                 <button
@@ -145,7 +170,7 @@ export default function Navbar() {
               </Link>
             )}
 
-            {/* Wishlist — hidden on mobile to save space */}
+            {/* Wishlist */}
             <Link href="/wishlist" className="hidden md:flex flex-col items-center px-3 py-1 rounded-lg hover:bg-gray-50 text-xs font-medium gap-0.5 relative">
               <span className="text-xl">🤍</span>
               Wishlist
@@ -156,7 +181,7 @@ export default function Navbar() {
               )}
             </Link>
 
-            {/* Cart — always visible */}
+            {/* Cart */}
             <button
               onClick={openCart}
               className="flex flex-col items-center px-2 md:px-3 py-1 rounded-lg hover:bg-gray-50 text-xs font-medium gap-0.5 relative"
@@ -191,18 +216,27 @@ export default function Navbar() {
             </button>
           </form>
 
+          {/* ✅ Mobile Suggestions */}
           {showSuggestions && suggestions?.length > 0 && (
             <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-xl shadow-lg overflow-hidden z-50">
               {suggestions.map((p) => (
-                <Link
+                <button
                   key={p._id}
-                  href={`/products/${p.slug}`}
-                  onClick={() => { setShowSuggestions(false); setSearch(""); }}
-                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors"
+                  onMouseDown={() => handleSuggestionClick(p.slug)}
+                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors w-full text-left"
                 >
-                  <span className="text-xs text-gray-500 flex-1">{p.name}</span>
-                  <span className="text-sm font-semibold text-accent">₹{p.price?.toLocaleString("en-IN")}</span>
-                </Link>
+                  {p.thumbnail && (
+                    <img
+                      src={p.thumbnail}
+                      alt={p.name}
+                      className="w-8 h-8 object-contain rounded-md bg-gray-50 flex-shrink-0"
+                    />
+                  )}
+                  <span className="text-xs text-gray-700 flex-1 line-clamp-1">{p.name}</span>
+                  <span className="text-sm font-semibold text-accent flex-shrink-0">
+                    ₹{p.price?.toLocaleString("en-IN")}
+                  </span>
+                </button>
               ))}
             </div>
           )}

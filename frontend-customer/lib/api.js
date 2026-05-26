@@ -40,10 +40,11 @@ export const authAPI = {
 };
 
 export const productAPI = {
-  getAll:      (params) => api.get("/products",          { params }),
-  getFeatured: ()       => api.get("/products/featured"),
-  search:      (q)      => api.get("/products/search",   { params: { q } }),
-  getOne:      (id)     => api.get(`/products/${id}`),
+  getAll:      (params)   => api.get("/products",                { params }),
+  getFeatured: ()         => api.get("/products/featured"),
+  search:      (q)        => api.get("/products/search",         { params: { q } }),
+  getOne:      (id)       => api.get(`/products/${id}`),
+  getRelated:  (id)       => api.get(`/products/${id}/related`), // ✅ NEW
   addReview:   (id, data) => api.post(`/products/${id}/reviews`, data),
 };
 

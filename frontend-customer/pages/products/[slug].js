@@ -48,6 +48,20 @@ function ProductSkeleton() {
   );
 }
 
+function RelatedProductsSkeleton() {
+  return (
+    <div className="mt-16 animate-pulse">
+      <div className="h-7 bg-gray-100 rounded w-48 mb-2" />
+      <div className="h-4 bg-gray-100 rounded w-32 mb-6" />
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="bg-gray-100 rounded-2xl h-64" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function RatingBar({ label, pct }) {
   return (
     <div className="flex items-center gap-2 text-xs">
@@ -73,7 +87,7 @@ function RelatedProductCard({ product }) {
     <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group flex flex-col">
       <Link href={`/products/${product.slug}`} className="relative block aspect-square bg-gray-50 overflow-hidden">
         <Image
-          src={product.thumbnail || "/placeholder.png"}
+          src={product.thumbnail || product.images?.[0]?.url || "/placeholder.png"}
           alt={product.name}
           fill
           className="object-contain p-4 group-hover:scale-105 transition-transform duration-300"
@@ -81,6 +95,11 @@ function RelatedProductCard({ product }) {
         {discount > 0 && (
           <span className="absolute top-2 left-2 bg-accent text-white text-[10px] font-bold px-2 py-0.5 rounded-lg">
             -{discount}%
+          </span>
+        )}
+        {product.isBestSeller && (
+          <span className="absolute bottom-2 left-2 bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-lg">
+            🔥 Bestseller
           </span>
         )}
         <button
@@ -146,13 +165,11 @@ export default function ProductPage() {
     enabled: !!slug,
   });
 
-  const { data: relatedData } = useQuery({
-    queryKey: ["related-products", product?.category?.name, product?._id],
-    queryFn: () =>
-      productAPI
-        .getAll({ category: product.category?.name, limit: 8 })
-        .then((r) => r.data.products.filter((p) => p._id !== product._id).slice(0, 8)),
-    enabled: !!product?.category?.name,
+  // ✅ FIXED: Ab dedicated /related endpoint use ho raha hai
+  const { data: relatedData, isLoading: relatedLoading } = useQuery({
+    queryKey: ["related-products", product?._id],
+    queryFn: () => productAPI.getRelated(product._id).then((r) => r.data.products),
+    enabled: !!product?._id,
   });
 
   useEffect(() => {
@@ -221,6 +238,7 @@ export default function ProductPage() {
       <Layout>
         <div className="max-w-7xl mx-auto px-4 py-8">
 
+          {/* Breadcrumb */}
           <nav className="text-xs text-gray-400 mb-6 flex items-center gap-1.5 flex-wrap">
             <Link href="/" className="hover:text-accent transition-colors">Home</Link>
             <span>/</span>
@@ -230,7 +248,9 @@ export default function ProductPage() {
             <span className="text-gray-600 font-medium line-clamp-1">{product.name}</span>
           </nav>
 
+          {/* Product Detail Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+            {/* Images */}
             <div className="space-y-3">
               <div className="relative w-full aspect-square bg-gray-50 rounded-2xl overflow-hidden border border-gray-100 group">
                 <Image src={images[selectedImage]?.url || "/placeholder.png"} alt={product.name} fill className="object-contain p-6 transition-transform duration-300 group-hover:scale-105" priority />
@@ -252,6 +272,7 @@ export default function ProductPage() {
               )}
             </div>
 
+            {/* Info */}
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-widest font-semibold mb-1">{product.brand}</p>
               <h1 className="font-display text-2xl lg:text-3xl font-bold text-primary leading-tight mb-3">{product.name}</h1>
@@ -384,15 +405,20 @@ export default function ProductPage() {
             )}
           </div>
 
-          {/* Related Products */}
-          {relatedData?.length > 0 && (
+          {/* ✅ Related Products Section */}
+          {relatedLoading ? (
+            <RelatedProductsSkeleton />
+          ) : relatedData?.length > 0 && (
             <div className="mt-16">
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h2 className="font-display text-2xl font-bold text-primary">Related Products</h2>
                   <p className="text-sm text-gray-400 mt-1">More from {product.category?.name}</p>
                 </div>
-                <Link href={`/products?category=${product.category?.name}`} className="text-sm text-accent font-semibold hover:underline">
+                <Link
+                  href={`/products?category=${product.category?.slug || product.category?.name}`}
+                  className="text-sm text-accent font-semibold hover:underline"
+                >
                   View All →
                 </Link>
               </div>

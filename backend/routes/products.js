@@ -5,22 +5,18 @@ const { protect, adminOnly } = require("../middleware/auth");
 
 // ── Helpers ───────────────────────────────────────────────
 
-// ✅ FIX: Category filter ab slug se ObjectId lookup karta hai
 const buildFilter = async (q) => {
   const f = { isActive: true };
 
   if (q.category) {
-    // Check karo — kya ye ObjectId hai ya slug string?
     const isObjectId = q.category.match(/^[0-9a-fA-F]{24}$/);
     if (isObjectId) {
       f.category = q.category;
     } else {
-      // Slug hai — Category collection se _id nikalo
       const cat = await Category.findOne({ slug: q.category });
       if (cat) {
         f.category = cat._id;
       } else {
-        // Category nahi mili — koi product nahi aayega
         f.category = null;
       }
     }
@@ -50,7 +46,7 @@ const paginationMeta = (total, page, limit) => ({
 
 // ── Public routes ─────────────────────────────────────────
 
-// GET /api/products  ?search=&category=&brand=&minPrice=&maxPrice=&page=&limit=&sort=
+// GET /api/products
 router.get("/", async (req, res) => {
   const page  = Math.max(1, Number(req.query.page  || 1));
   const limit = Math.min(50, Number(req.query.limit || 20));
@@ -65,7 +61,7 @@ router.get("/", async (req, res) => {
     relevance: { score: { $meta: "textScore" } },
   };
   const sort   = sortMap[req.query.sort] || sortMap.newest;
-  const filter = await buildFilter(req.query); // ✅ await because async now
+  const filter = await buildFilter(req.query);
 
   const [products, total] = await Promise.all([
     Product.find(filter)
@@ -95,6 +91,47 @@ router.get("/search", async (req, res) => {
   ).sort({ score: { $meta: "textScore" } }).limit(Number(limit))
    .select("name brand price thumbnail slug avgRating");
   res.json({ success: true, suggestions: products });
+});
+
+// ✅ GET /api/products/:id/related — MUST be before /:id route
+router.get("/:id/related", async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id).select("category brand");
+    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+
+    // Same category ke products
+    const related = await Product.find({
+      _id:      { $ne: product._id },
+      category: product.category,
+      isActive: true,
+      inStock:  true,
+    })
+      .populate("category", "name slug")
+      .select("name slug brand price mrp discount thumbnail images avgRating numReviews inStock isBestSeller stock")
+      .sort({ isBestSeller: -1, soldCount: -1 })
+      .limit(8);
+
+    // Agar 4 se kam mile to same brand ke bhi fill karo
+    if (related.length < 4) {
+      const existingIds = [product._id, ...related.map((p) => p._id)];
+      const more = await Product.find({
+        _id:      { $nin: existingIds },
+        brand:    product.brand,
+        isActive: true,
+        inStock:  true,
+      })
+        .populate("category", "name slug")
+        .select("name slug brand price mrp discount thumbnail images avgRating numReviews inStock isBestSeller stock")
+        .sort({ soldCount: -1 })
+        .limit(8 - related.length);
+
+      related.push(...more);
+    }
+
+    res.json({ success: true, products: related });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // GET /api/products/:idOrSlug

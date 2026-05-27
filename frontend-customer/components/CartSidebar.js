@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import toast from "react-hot-toast";
-import { useCartStore } from "../store";
+import { useCartStore, cartTotal } from "../store";
 
 const fmt = (n) => `₹${n?.toLocaleString("en-IN")}`;
 
@@ -16,8 +16,8 @@ const COUPONS = {
 const FREE_DELIVERY_THRESHOLD = 499;
 
 export default function CartSidebar() {
-  const { items, isOpen, closeCart, removeItem, updateQty, total: getTotal } = useCartStore();
-  const total = typeof getTotal === "function" ? getTotal() : getTotal;
+  const { items, isOpen, closeCart, removeItem, updateQty } = useCartStore();
+  const total = cartTotal(items);
 
   const [couponCode, setCouponCode]   = useState("");
   const [appliedCoupon, setApplied]   = useState(null); // { code, discount }

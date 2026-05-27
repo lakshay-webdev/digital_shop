@@ -67,15 +67,15 @@ export const useCartStore = create(
       },
 
       clear: () => set({ items: [] }),
-
-      // ✅ FIX: `get total()` and `get itemCount()` syntax doesn't work inside Zustand state objects.
-      // They must be regular functions that call get() to read current state.
-      total:     () => get().items.reduce((s, i) => s + i.price * i.qty, 0),
-      itemCount: () => get().items.reduce((s, i) => s + i.qty, 0),
     }),
     { name: "digisho-cart" }
   )
 );
+
+// ✅ FIX: Zustand persist cannot restore functions from localStorage.
+// Use these plain selector helpers instead of store.total() / store.itemCount()
+export const cartTotal     = (items) => items.reduce((s, i) => s + (i.price || 0) * (i.qty || 1), 0);
+export const cartItemCount = (items) => items.reduce((s, i) => s + (i.qty || 1), 0);
 
 // ── Wishlist Store ────────────────────────────────────────
 export const useWishlistStore = create(

@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import Head from "next/head";
 import toast from "react-hot-toast";
 import Layout from "../components/Layout";
-import { useCartStore, useAuthStore } from "../store";
+import { useCartStore, useAuthStore, cartTotal } from "../store";
 import { orderAPI, couponAPI, paymentAPI } from "../lib/api";
 
 const PAYMENT_METHODS = [
@@ -30,11 +30,11 @@ const isValidPin    = (v) => /^\d{6}$/.test(v);
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { items, total: getTotal, clear } = useCartStore();
+  const { items, clear } = useCartStore();
   const { user } = useAuthStore();
 
-  // ✅ FIX: total is a function in Zustand store — call it with ()
-  const total = typeof getTotal === "function" ? getTotal() : getTotal;
+  // ✅ FIX: compute total directly from items (persist-safe)
+  const total = cartTotal(items);
 
   const [payMethod, setPayMethod] = useState("upi");
   const [coupon,    setCoupon]    = useState({ code: "", discount: 0, applied: false });

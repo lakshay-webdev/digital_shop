@@ -19,20 +19,66 @@ const StatCard = ({ icon, label, value, sub, color }) => (
 const COLORS = ["#16a34a", "#0369a1", "#d97706", "#dc2626", "#7c3aed", "#db2777"];
 
 export default function DashboardPage() {
-  const { data: stats }   = useQuery({ queryKey: ["admin-stats"],   queryFn: () => adminAPI.getStats().then(r => r.data.stats) });
-  const { data: chart }   = useQuery({ queryKey: ["revenue-chart"], queryFn: () => adminAPI.getRevenueChart(7).then(r => r.data.data) });
-  const { data: orders }  = useQuery({ queryKey: ["recent-orders"], queryFn: () => adminAPI.getRecentOrders().then(r => r.data.orders) });
-  const { data: topProds} = useQuery({ queryKey: ["top-products"],  queryFn: () => adminAPI.getTopProducts().then(r => r.data.products) });
-  const { data: breakdown}= useQuery({ queryKey: ["order-breakdown"],queryFn: () => adminAPI.getOrderBreakdown().then(r => r.data.breakdown) });
+  const { data: stats }    = useQuery({ queryKey: ["admin-stats"],    queryFn: () => adminAPI.getStats().then(r => r.data.stats) });
+  const { data: chart }    = useQuery({ queryKey: ["revenue-chart"],  queryFn: () => adminAPI.getRevenueChart(7).then(r => r.data.data) });
+  const { data: orders }   = useQuery({ queryKey: ["recent-orders"],  queryFn: () => adminAPI.getRecentOrders().then(r => r.data.orders) });
+  const { data: topProds } = useQuery({ queryKey: ["top-products"],   queryFn: () => adminAPI.getTopProducts().then(r => r.data.products) });
+  const { data: breakdown }= useQuery({ queryKey: ["order-breakdown"],queryFn: () => adminAPI.getOrderBreakdown().then(r => r.data.breakdown) });
+
+  // ✅ Frontend section stats
+  const { data: featuredData }   = useQuery({ queryKey: ["admin-featured-count"],   queryFn: () => adminAPI.getProducts({ featured: true,    limit: 1 }).then(r => r.data.total) });
+  const { data: bestSellerData } = useQuery({ queryKey: ["admin-bestseller-count"], queryFn: () => adminAPI.getProducts({ bestSeller: true,  limit: 1 }).then(r => r.data.total) });
+  const { data: newArrivalData } = useQuery({ queryKey: ["admin-newarrival-count"], queryFn: () => adminAPI.getProducts({ newArrival: true,  limit: 1 }).then(r => r.data.total) });
+  const { data: lowStockData }   = useQuery({ queryKey: ["admin-lowstock-count"],   queryFn: () => adminAPI.getProducts({ maxStock: 10,      limit: 1 }).then(r => r.data.total) });
 
   return (
     <AdminLayout title="Dashboard">
-      {/* KPI Cards */}
+
+      {/* ── KPI Cards ── */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-        <StatCard icon="💰" label="Total Revenue"    value={fmt(stats?.totalRevenue)} sub={`↑ ${stats?.revenueGrowth || 0}% this month`} color="bg-blue-50" />
-        <StatCard icon="📦" label="Total Orders"     value={stats?.totalOrders?.toLocaleString() || "—"} sub={`${stats?.todayOrders || 0} today`} color="bg-green-50" />
-        <StatCard icon="👥" label="Total Users"      value={stats?.totalUsers?.toLocaleString() || "—"} sub={`+${stats?.newUsersMonth || 0} this month`} color="bg-amber-50" />
-        <StatCard icon="⏳" label="Pending Orders"   value={stats?.pendingOrders || "—"} sub="Needs attention" color="bg-red-50" />
+        <StatCard icon="💰" label="Total Revenue"  value={fmt(stats?.totalRevenue)} sub={`↑ ${stats?.revenueGrowth || 0}% this month`} color="bg-blue-50" />
+        <StatCard icon="📦" label="Total Orders"   value={stats?.totalOrders?.toLocaleString() || "—"} sub={`${stats?.todayOrders || 0} today`} color="bg-green-50" />
+        <StatCard icon="👥" label="Total Users"    value={stats?.totalUsers?.toLocaleString() || "—"} sub={`+${stats?.newUsersMonth || 0} this month`} color="bg-amber-50" />
+        <StatCard icon="⏳" label="Pending Orders" value={stats?.pendingOrders || "—"} sub="Needs attention" color="bg-red-50" />
+      </div>
+
+      {/* ✅ Homepage Sections Health Cards */}
+      <div className="mb-6">
+        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Homepage Sections Status</h3>
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center gap-3">
+            <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-xl">⭐</div>
+            <div>
+              <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Featured</p>
+              <p className="text-xl font-bold text-primary">{featuredData ?? "—"}</p>
+              <p className="text-[10px] text-gray-400">products for Deal of Day</p>
+            </div>
+          </div>
+          <div className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center gap-3">
+            <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-xl">🔥</div>
+            <div>
+              <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Best Sellers</p>
+              <p className="text-xl font-bold text-primary">{bestSellerData ?? "—"}</p>
+              <p className="text-[10px] text-gray-400">shown in Best Sellers section</p>
+            </div>
+          </div>
+          <div className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center gap-3">
+            <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center text-xl">✨</div>
+            <div>
+              <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">New Arrivals</p>
+              <p className="text-xl font-bold text-primary">{newArrivalData ?? "—"}</p>
+              <p className="text-[10px] text-gray-400">with New badge on card</p>
+            </div>
+          </div>
+          <div className={`bg-white border rounded-2xl p-4 flex items-center gap-3 ${(lowStockData > 0) ? "border-red-200 bg-red-50" : "border-gray-100"}`}>
+            <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center text-xl">⚠️</div>
+            <div>
+              <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Low Stock</p>
+              <p className={`text-xl font-bold ${lowStockData > 0 ? "text-red-500" : "text-primary"}`}>{lowStockData ?? "—"}</p>
+              <p className="text-[10px] text-gray-400">products below 10 units</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Charts Row */}
@@ -106,10 +152,10 @@ export default function DashboardPage() {
                   <td className="px-5 py-3 font-semibold">{fmt(o.totalAmount)}</td>
                   <td className="px-5 py-3">
                     <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                      o.status === "delivered"     ? "bg-green-50 text-green-700"  :
-                      o.status === "pending"       ? "bg-amber-50 text-amber-700"  :
-                      o.status === "cancelled"     ? "bg-red-50 text-red-700"      :
-                      o.status === "shipped"       ? "bg-purple-50 text-purple-700":
+                      o.status === "delivered" ? "bg-green-50 text-green-700"   :
+                      o.status === "pending"   ? "bg-amber-50 text-amber-700"   :
+                      o.status === "cancelled" ? "bg-red-50 text-red-700"       :
+                      o.status === "shipped"   ? "bg-purple-50 text-purple-700" :
                       "bg-blue-50 text-blue-700"
                     }`}>
                       {o.status?.replace("_", " ")}
@@ -131,9 +177,19 @@ export default function DashboardPage() {
             {(topProds || []).map((p, i) => (
               <div key={p._id} className="flex items-center gap-3">
                 <span className="w-6 text-xs font-bold text-gray-400">#{i+1}</span>
+                <div className="w-8 h-8 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden">
+                  {p.thumbnail
+                    ? <img src={p.thumbnail} alt="" className="w-full h-full object-cover" />
+                    : <span className="flex items-center justify-center h-full text-sm">📦</span>}
+                </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate">{p.name}</p>
-                  <p className="text-xs text-gray-400">{p.brand}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs text-gray-400">{p.brand}</p>
+                    {p.isBestSeller  && <span className="text-[10px] bg-orange-50 text-orange-600 px-1.5 rounded font-semibold">🔥</span>}
+                    {p.featured      && <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 rounded font-semibold">⭐</span>}
+                    {p.isNewArrival  && <span className="text-[10px] bg-green-50 text-green-600 px-1.5 rounded font-semibold">✨</span>}
+                  </div>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-bold text-accent">{fmt(p.price)}</p>

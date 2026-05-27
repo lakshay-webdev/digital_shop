@@ -4,7 +4,7 @@ import Image from "next/image";
 import toast from "react-hot-toast";
 import { useCartStore } from "../store";
 
-const fmt = (n) => `₹${n?.toLocaleString("en-IN")}`;
+const fmt = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
 
 // ── Coupon logic ─────────────────────────────────────────────
 const COUPONS = {
@@ -16,7 +16,9 @@ const COUPONS = {
 const FREE_DELIVERY_THRESHOLD = 499;
 
 export default function CartSidebar() {
-  const { items, isOpen, closeCart, removeItem, updateQty, total } = useCartStore();
+  // ✅ FIX: total is a function in Zustand store — must call it with ()
+  const { items, isOpen, closeCart, removeItem, updateQty, total: getTotal } = useCartStore();
+  const total = typeof getTotal === "function" ? getTotal() : (getTotal || 0);
 
   const [couponCode, setCouponCode]   = useState("");
   const [appliedCoupon, setApplied]   = useState(null); // { code, discount }
@@ -33,7 +35,7 @@ export default function CartSidebar() {
   // ── Calculations ─────────────────────────────────────────
   const totalQty       = items.reduce((s, i) => s + i.qty, 0);
   const totalMRP       = items.reduce((s, i) => s + (i.mrp || i.price) * i.qty, 0);
-  const totalSavings   = totalMRP - total;
+  const totalSavings   = Math.max(0, totalMRP - total);
   const couponDiscount = appliedCoupon?.discount || 0;
   const deliveryCharge = total >= FREE_DELIVERY_THRESHOLD ? 0 : 49;
   const grandTotal     = total - couponDiscount + deliveryCharge;
@@ -206,8 +208,8 @@ export default function CartSidebar() {
             {/* Price breakdown */}
             <div className="space-y-1.5 text-sm">
               <div className="flex justify-between text-gray-500">
-                <span>MRP Total</span>
-                <span>{fmt(totalMRP)}</span>
+                <span>Subtotal ({totalQty} items)</span>
+                <span>{fmt(total)}</span>
               </div>
               {totalSavings > 0 && (
                 <div className="flex justify-between text-green-600 font-medium">

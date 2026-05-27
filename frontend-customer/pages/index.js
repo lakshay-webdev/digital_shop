@@ -10,9 +10,7 @@ import CategoryGrid from "../components/CategoryGrid";
 import FlashSaleTimer from "../components/FlashSaleTimer";
 import { productAPI, bannerAPI } from "../lib/api";
 
-// ✅ FIX: Flash Sale end time persists across page refreshes using localStorage
-// Duration: 5 hours from FIRST visit — won't reset on every reload
-const FLASH_SALE_DURATION_MS = 5 * 60 * 60 * 1000; // 5 hours
+const FLASH_SALE_DURATION_MS = 5 * 60 * 60 * 1000;
 const FLASH_SALE_STORAGE_KEY = "digisho_flash_sale_end";
 
 function getFlashSaleEndTime() {
@@ -20,7 +18,6 @@ function getFlashSaleEndTime() {
   const stored = localStorage.getItem(FLASH_SALE_STORAGE_KEY);
   if (stored) {
     const parsed = Number(stored);
-    // If sale already ended, start a new one
     if (parsed > Date.now()) return parsed;
   }
   const newEnd = Date.now() + FLASH_SALE_DURATION_MS;
@@ -31,7 +28,6 @@ function getFlashSaleEndTime() {
 export default function HomePage() {
   const [flashSaleEnd, setFlashSaleEnd] = useState(null);
 
-  // ✅ Run only on client side (avoids SSR mismatch)
   useEffect(() => {
     setFlashSaleEnd(getFlashSaleEndTime());
   }, []);
@@ -46,9 +42,10 @@ export default function HomePage() {
     queryFn:  () => productAPI.getAll({ bestSeller: true, limit: 8 }).then((r) => r.data.products),
   });
 
+  // ✅ FIX: isNewArrival flag pe depend karne ki bajay latest products dikhao
   const { data: newArrivals, error: newArrivalsError } = useQuery({
     queryKey: ["products", "newArrivals"],
-    queryFn:  () => productAPI.getAll({ newArrival: true, limit: 8 }).then((r) => r.data.products),
+    queryFn:  () => productAPI.getAll({ sort: "newest", limit: 8 }).then((r) => r.data.products),
   });
 
   const { data: banners, error: bannersError } = useQuery({
@@ -69,7 +66,6 @@ export default function HomePage() {
         <title>DigiSho — Shop Premium Products Online</title>
       </Head>
 
-      {/* Hero Banners */}
       {hasDataError && (
         <section className="max-w-7xl mx-auto px-4 py-4">
           <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-900">
@@ -78,11 +74,12 @@ export default function HomePage() {
           </div>
         </section>
       )}
+
+      {/* Hero Banners */}
       <HeroBanner banners={banners || []} />
 
       {/* Flash Sale */}
       <section className="max-w-7xl mx-auto px-4 py-10">
-        {/* ✅ FIX: flashSaleEnd is now stable — won't reset on every page refresh */}
         {flashSaleEnd && <FlashSaleTimer endTime={flashSaleEnd} />}
       </section>
 

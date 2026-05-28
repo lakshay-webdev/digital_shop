@@ -3,176 +3,290 @@ import { useRouter } from "next/router";
 import Head from "next/head";
 import Link from "next/link";
 import toast from "react-hot-toast";
+import Cookies from "js-cookie";
+import Layout from "../components/Layout";
 import { authAPI } from "../lib/api";
 import { useAuthStore } from "../store";
 
-const isValidPhone = (value) => /^[0-9]{10}$/.test(value);
+// ✅ Validators
+const isValidEmail = (v) => /^\S+@\S+\.\S+$/.test(v);
+const isValidPass  = (v) => v.length >= 6;
+const isValidOTP   = (v) => /^\d{6}$/.test(v);
 
 export default function LoginPage() {
-  const router = useRouter();
-  const setAuth = useAuthStore(s => s.setAuth);
-  const [tab,     setTab]     = useState("login");   // login | register | otp
-  const [otpStep, setOtpStep] = useState(1);
-  const [loading, setLoading] = useState(false);
+  const router   = useRouter();
+  const setUser  = useAuthStore((s) => s.setUser);
+  const redirect = router.query.redirect || "/";
 
-  const [loginForm,    setLoginForm]    = useState({ email: "", password: "" });
-  const [registerForm, setRegisterForm] = useState({ name: "", email: "", phone: "", password: "" });
-  const [otpForm,      setOtpForm]      = useState({ phone: "", otp: "" });
+  // Mode: "password" | "otp"
+  const [mode, setMode]           = useState("password");
 
-  const after = router.query.redirect || "/";
+  // Password login state
+  const [email, setEmail]         = useState("");
+  const [password, setPassword]   = useState("");
+  const [showPass, setShowPass]   = useState(false);
 
-  // ── Login ─────────────────────────────────────────────
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const { data } = await authAPI.login(loginForm);
-      setAuth(data.user, data.token);
-      toast.success(`Welcome back, ${data.user.name.split(" ")[0]}! 👋`);
-      router.push(after);
-    } catch (err) {
-      toast.error(err.response?.data?.message || "Invalid credentials");
-    } finally { setLoading(false); }
+  // OTP login state
+  const [otpEmail, setOtpEmail]   = useState("");
+  const [otp, setOtp]             = useState("");
+  const [otpSent, setOtpSent]     = useState(false);
+  const [otpTimer, setOtpTimer]   = useState(0);
+
+  const [loading, setLoading]     = useState(false);
+  const [errors,  setErrors]      = useState({});
+
+  // ── OTP countdown timer ──────────────────────────────────
+  const startTimer = () => {
+    setOtpTimer(60);
+    const id = setInterval(() => {
+      setOtpTimer((t) => {
+        if (t <= 1) { clearInterval(id); return 0; }
+        return t - 1;
+      });
+    }, 1000);
   };
 
-  // ── Register ──────────────────────────────────────────
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    if (registerForm.password.length < 6) { toast.error("Password must be at least 6 characters"); return; }
-    if (!isValidPhone(registerForm.phone)) { toast.error("Enter a valid 10-digit mobile number"); return; }
-    setLoading(true);
-    try {
-      const { data } = await authAPI.register(registerForm);
-      setAuth(data.user, data.token);
-      toast.success("Account created! Welcome to DigiSho 🎉");
-      router.push(after);
-    } catch (err) {
-      toast.error(err.response?.data?.message || "Registration failed");
-    } finally { setLoading(false); }
+  // ── Save auth and redirect ───────────────────────────────
+  const saveAuth = (token, user) => {
+    Cookies.set("token", token, { expires: 7 });
+    localStorage.setItem("token", token);
+    setUser(user);
+    toast.success(`Welcome back, ${user.name?.split(" ")[0]}! 👋`);
+    router.push(redirect);
   };
 
-  // ── OTP ───────────────────────────────────────────────
-  const handleSendOTP = async (e) => {
+  // ── Password Login ───────────────────────────────────────
+  const handlePasswordLogin = async (e) => {
     e.preventDefault();
-    if (!isValidPhone(otpForm.phone)) { toast.error("Enter a valid 10-digit mobile number"); return; }
+    const errs = {};
+    if (!isValidEmail(email))  errs.email    = "Enter a valid email address";
+    if (!isValidPass(password)) errs.password = "Password must be at least 6 characters";
+    setErrors(errs);
+    if (Object.keys(errs).length) return;
+
     setLoading(true);
     try {
-      await authAPI.sendOTP(otpForm.phone);
-      toast.success("OTP sent to your phone!");
-      setOtpStep(2);
+      const { data } = await authAPI.login({ email, password });
+      saveAuth(data.token, data.user);
+    } catch (err) {
+      const msg = err.response?.data?.message || "Login failed";
+      if (msg.toLowerCase().includes("password")) setErrors({ password: msg });
+      else if (msg.toLowerCase().includes("email")) setErrors({ email: msg });
+      else toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Send Email OTP ───────────────────────────────────────
+  const handleSendOTP = async () => {
+    if (!isValidEmail(otpEmail)) {
+      setErrors({ otpEmail: "Enter a valid email address" });
+      return;
+    }
+    setErrors({});
+    setLoading(true);
+    try {
+      await authAPI.sendEmailOTP(otpEmail);
+      setOtpSent(true);
+      startTimer();
+      toast.success("OTP sent to your email! Check inbox 📧");
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to send OTP");
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // ── Verify Email OTP ─────────────────────────────────────
   const handleVerifyOTP = async (e) => {
     e.preventDefault();
+    const errs = {};
+    if (!isValidEmail(otpEmail)) errs.otpEmail = "Enter a valid email";
+    if (!isValidOTP(otp))        errs.otp      = "Enter valid 6-digit OTP";
+    setErrors(errs);
+    if (Object.keys(errs).length) return;
+
     setLoading(true);
     try {
-      const { data } = await authAPI.verifyOTP({ phone: otpForm.phone, otp: otpForm.otp });
-      setAuth(data.user, data.token);
-      toast.success("Logged in successfully! ✓");
-      router.push(after);
+      const { data } = await authAPI.verifyEmailOTP({ email: otpEmail, otp });
+      saveAuth(data.token, data.user);
     } catch (err) {
-      toast.error(err.response?.data?.message || "Invalid OTP");
-    } finally { setLoading(false); }
+      setErrors({ otp: err.response?.data?.message || "Invalid or expired OTP" });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const inputCls = "w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-accent transition-colors";
-  const labelCls = "block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1";
-  const btnCls   = "w-full bg-accent text-white rounded-xl py-3.5 font-bold text-sm hover:bg-red-600 transition-colors disabled:opacity-60 mt-1";
+  const inputCls = (field) =>
+    `w-full border rounded-xl px-4 py-3 text-sm focus:outline-none transition-colors ${
+      errors[field] ? "border-red-400 focus:border-red-500 bg-red-50" : "border-gray-200 focus:border-accent"
+    }`;
 
   return (
     <>
-      <Head><title>{tab === "register" ? "Create Account" : "Sign In"} | DigiSho</title></Head>
-      <div className="min-h-screen bg-gradient-to-br from-[#1a1a2e] to-[#0f3460] flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl p-8 w-full max-w-sm shadow-2xl">
-          {/* Logo */}
-          <div className="text-center mb-6">
-            <Link href="/" className="font-display text-2xl font-bold">
-              <span className="text-accent">Digi</span>
-              <span className="text-primary">Sho</span>
-            </Link>
-            <p className="text-xs text-gray-500 mt-1">
-              {tab === "login" ? "Sign in to your account" : tab === "register" ? "Create a new account" : "Login with OTP"}
-            </p>
-          </div>
+      <Head><title>Login | DigiSho</title></Head>
+      <Layout>
+        <div className="min-h-[80vh] flex items-center justify-center px-4 py-12">
+          <div className="w-full max-w-md">
 
-          {/* Tabs */}
-          <div className="flex bg-gray-50 rounded-xl p-1 mb-6">
-            {[["login","Sign In"],["register","Register"],["otp","OTP"]].map(([id, label]) => (
-              <button key={id} onClick={() => { setTab(id); setOtpStep(1); }}
-                className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
-                  tab === id ? "bg-white text-primary shadow-sm" : "text-gray-500 hover:text-gray-700"
-                }`}>{label}</button>
-            ))}
-          </div>
+            {/* Logo */}
+            <div className="text-center mb-8">
+              <Link href="/" className="font-display text-3xl font-bold text-accent">
+                Digi<span className="text-primary">Sho</span>
+              </Link>
+              <h1 className="text-xl font-bold text-primary mt-3">Welcome back!</h1>
+              <p className="text-sm text-gray-500 mt-1">Sign in to your account</p>
+            </div>
 
-          {/* Login Form */}
-          {tab === "login" && (
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div><label className={labelCls}>Email</label><input type="email" required placeholder="you@example.com" value={loginForm.email} onChange={e => setLoginForm({ ...loginForm, email: e.target.value })} className={inputCls} /></div>
-              <div>
-                <label className={labelCls}>Password</label>
-                <input type="password" required placeholder="••••••••" value={loginForm.password} onChange={e => setLoginForm({ ...loginForm, password: e.target.value })} className={inputCls} />
-                <div className="text-right mt-1.5"><Link href="/forgot-password" className="text-xs text-accent hover:underline">Forgot password?</Link></div>
+            {/* Card */}
+            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-8">
+
+              {/* Mode Toggle */}
+              <div className="flex bg-gray-100 rounded-xl p-1 mb-6">
+                <button
+                  onClick={() => { setMode("password"); setErrors({}); }}
+                  className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${mode === "password" ? "bg-white shadow text-primary" : "text-gray-500"}`}
+                >
+                  🔑 Password
+                </button>
+                <button
+                  onClick={() => { setMode("otp"); setErrors({}); }}
+                  className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${mode === "otp" ? "bg-white shadow text-primary" : "text-gray-500"}`}
+                >
+                  📧 Email OTP
+                </button>
               </div>
-              <button type="submit" disabled={loading} className={btnCls}>{loading ? "Signing in..." : "Sign In →"}</button>
-            </form>
-          )}
 
-          {/* Register Form */}
-          {tab === "register" && (
-            <form onSubmit={handleRegister} className="space-y-4">
-              <div><label className={labelCls}>Full Name</label><input type="text" required placeholder="Rahul Sharma" value={registerForm.name} onChange={e => setRegisterForm({ ...registerForm, name: e.target.value })} className={inputCls} /></div>
-              <div><label className={labelCls}>Email</label><input type="email" required placeholder="you@example.com" value={registerForm.email} onChange={e => setRegisterForm({ ...registerForm, email: e.target.value })} className={inputCls} /></div>
-              <div><label className={labelCls}>Phone</label><input type="tel" placeholder="9876543210" value={registerForm.phone} onChange={e => setRegisterForm({ ...registerForm, phone: e.target.value.replace(/\D/g, "").slice(0, 10) })} className={inputCls} /></div>
-              <div><label className={labelCls}>Password</label><input type="password" required placeholder="Min 6 characters" value={registerForm.password} onChange={e => setRegisterForm({ ...registerForm, password: e.target.value })} className={inputCls} /></div>
-              <button type="submit" disabled={loading} className={btnCls}>{loading ? "Creating account..." : "Create Account →"}</button>
-            </form>
-          )}
-
-          {/* OTP Form */}
-          {tab === "otp" && (
-            <>
-              {otpStep === 1 ? (
-                <form onSubmit={handleSendOTP} className="space-y-4">
-                  <div><label className={labelCls}>Mobile Number</label><input type="tel" required placeholder="9876543210" value={otpForm.phone} onChange={e => setOtpForm({ ...otpForm, phone: e.target.value.replace(/\D/g, "").slice(0, 10) })} className={inputCls} /></div>
-                  <button type="submit" disabled={loading} className={btnCls}>{loading ? "Sending OTP..." : "Send OTP →"}</button>
-                </form>
-              ) : (
-                <form onSubmit={handleVerifyOTP} className="space-y-4">
-                  <p className="text-xs text-gray-500 text-center">OTP sent to {otpForm.phone}</p>
+              {/* ── Password Login Form ── */}
+              {mode === "password" && (
+                <form onSubmit={handlePasswordLogin} className="space-y-4">
                   <div>
-                    <label className={labelCls}>Enter 6-digit OTP</label>
-                    <div className="flex gap-2 justify-center">
-                      {[0,1,2,3,4,5].map(i => (
-                        <input key={i} type="text" maxLength={1}
-                          className="w-10 h-12 border border-gray-200 rounded-xl text-center text-lg font-bold outline-none focus:border-accent transition-colors"
-                          onInput={e => {
-                            const inputs = e.target.closest("div").querySelectorAll("input");
-                            if (e.target.value && i < 5) inputs[i + 1]?.focus();
-                            const otp = Array.from(inputs).map(inp => inp.value).join("");
-                            setOtpForm(f => ({ ...f, otp }));
-                          }}
-                        />
-                      ))}
-                    </div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Email Address</label>
+                    <input
+                      type="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => { setEmail(e.target.value); setErrors({ ...errors, email: "" }); }}
+                      className={inputCls("email")}
+                      autoComplete="email"
+                    />
+                    {errors.email && <p className="text-red-500 text-xs mt-1">⚠ {errors.email}</p>}
                   </div>
-                  <button type="submit" disabled={loading} className={btnCls}>{loading ? "Verifying..." : "Verify & Login →"}</button>
-                  <button type="button" onClick={() => setOtpStep(1)} className="w-full text-xs text-gray-500 hover:text-gray-700 py-2">← Change number</button>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Password</label>
+                      <Link href="/forgot-password" className="text-xs text-accent hover:underline">Forgot password?</Link>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type={showPass ? "text" : "password"}
+                        placeholder="Enter your password"
+                        value={password}
+                        onChange={(e) => { setPassword(e.target.value); setErrors({ ...errors, password: "" }); }}
+                        className={`${inputCls("password")} pr-12`}
+                        autoComplete="current-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPass(!showPass)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm"
+                      >
+                        {showPass ? "🙈" : "👁️"}
+                      </button>
+                    </div>
+                    {errors.password && <p className="text-red-500 text-xs mt-1">⚠ {errors.password}</p>}
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-accent text-white rounded-xl py-3 font-bold hover:bg-red-600 transition-colors disabled:opacity-60 mt-2"
+                  >
+                    {loading ? "Signing in..." : "Sign In →"}
+                  </button>
                 </form>
               )}
-            </>
-          )}
 
-          <p className="text-center text-xs text-gray-400 mt-5">
-            By continuing, you agree to DigiSho's{" "}
-            <Link href="/terms" className="text-accent hover:underline">Terms</Link> &{" "}
-            <Link href="/privacy" className="text-accent hover:underline">Privacy Policy</Link>
-          </p>
+              {/* ── OTP Login Form ── */}
+              {mode === "otp" && (
+                <form onSubmit={handleVerifyOTP} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Email Address</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="email"
+                        placeholder="you@example.com"
+                        value={otpEmail}
+                        onChange={(e) => { setOtpEmail(e.target.value); setErrors({ ...errors, otpEmail: "" }); }}
+                        className={`${inputCls("otpEmail")} flex-1`}
+                        disabled={otpSent}
+                        autoComplete="email"
+                      />
+                      <button
+                        type="button"
+                        onClick={otpSent ? () => { setOtpSent(false); setOtp(""); startTimer(); handleSendOTP(); } : handleSendOTP}
+                        disabled={loading || otpTimer > 0}
+                        className="px-4 py-3 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-60 whitespace-nowrap flex-shrink-0"
+                      >
+                        {loading && !otpSent ? "..." : otpTimer > 0 ? `${otpTimer}s` : otpSent ? "Resend" : "Send OTP"}
+                      </button>
+                    </div>
+                    {errors.otpEmail && <p className="text-red-500 text-xs mt-1">⚠ {errors.otpEmail}</p>}
+                    {otpSent && <p className="text-green-600 text-xs mt-1">✓ OTP sent! Check your inbox (also spam folder)</p>}
+                  </div>
+
+                  {otpSent && (
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Enter OTP</label>
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        placeholder="6-digit OTP"
+                        value={otp}
+                        onChange={(e) => { setOtp(e.target.value.replace(/\D/g, "").slice(0, 6)); setErrors({ ...errors, otp: "" }); }}
+                        className={`${inputCls("otp")} tracking-[0.5em] text-center text-lg font-bold`}
+                        maxLength={6}
+                        autoFocus
+                      />
+                      {errors.otp && <p className="text-red-500 text-xs mt-1">⚠ {errors.otp}</p>}
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={loading || !otpSent}
+                    className="w-full bg-accent text-white rounded-xl py-3 font-bold hover:bg-red-600 transition-colors disabled:opacity-60 mt-2"
+                  >
+                    {loading ? "Verifying..." : "Verify & Sign In →"}
+                  </button>
+                </form>
+              )}
+
+              {/* Divider */}
+              <div className="flex items-center gap-3 my-5">
+                <div className="flex-1 h-px bg-gray-100" />
+                <span className="text-xs text-gray-400">Don't have an account?</span>
+                <div className="flex-1 h-px bg-gray-100" />
+              </div>
+
+              <Link
+                href="/register"
+                className="w-full block text-center border-2 border-gray-200 text-primary rounded-xl py-3 font-bold hover:border-accent hover:text-accent transition-colors text-sm"
+              >
+                Create Account →
+              </Link>
+            </div>
+
+            <p className="text-center text-xs text-gray-400 mt-6">
+              By signing in, you agree to our{" "}
+              <Link href="/terms" className="text-accent hover:underline">Terms</Link> and{" "}
+              <Link href="/privacy" className="text-accent hover:underline">Privacy Policy</Link>
+            </p>
+          </div>
         </div>
-      </div>
+      </Layout>
     </>
   );
 }

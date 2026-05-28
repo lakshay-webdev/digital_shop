@@ -30,13 +30,13 @@ api.interceptors.response.use(
 export default api;
 
 export const authAPI = {
-  register:       (data) => api.post("/auth/register",        data),
-  login:          (data) => api.post("/auth/login",           data),
-  sendOTP:        (phone) => api.post("/auth/send-otp",       { phone }),
-  verifyOTP:      (data)  => api.post("/auth/verify-otp",     data),
-  forgotPassword: (email) => api.post("/auth/forgot-password",{ email }),
-  resetPassword:  (token, password) => api.put(`/auth/reset-password/${token}`, { password }),
-  getMe:          ()      => api.get("/auth/me"),
+  register:        (data)          => api.post("/auth/register",          data),
+  login:           (data)          => api.post("/auth/login",             data),
+  sendEmailOTP:    (email)         => api.post("/auth/send-email-otp",    { email }),   // ✅ NEW
+  verifyEmailOTP:  (data)          => api.post("/auth/verify-email-otp",  data),        // ✅ NEW
+  forgotPassword:  (email)         => api.post("/auth/forgot-password",   { email }),
+  resetPassword:   (token, password) => api.put(`/auth/reset-password/${token}`, { password }),
+  getMe:           ()              => api.get("/auth/me"),
 };
 
 export const productAPI = {
@@ -44,24 +44,24 @@ export const productAPI = {
   getFeatured: ()         => api.get("/products/featured"),
   search:      (q)        => api.get("/products/search",         { params: { q } }),
   getOne:      (id)       => api.get(`/products/${id}`),
-  getRelated:  (id)       => api.get(`/products/${id}/related`), // ✅ NEW
+  getRelated:  (id)       => api.get(`/products/${id}/related`),
   addReview:   (id, data) => api.post(`/products/${id}/reviews`, data),
 };
 
 export const orderAPI = {
-  place:  (data)         => api.post("/orders",              data),
-  getMy:  (params)       => api.get("/orders/my",            { params }),
-  getOne: (id)           => api.get(`/orders/${id}`),
-  cancel: (id)           => api.put(`/orders/${id}/cancel`),
-  return: (id, reason)   => api.put(`/orders/${id}/return`,  { reason }),
+  place:  (data)       => api.post("/orders",             data),
+  getMy:  (params)     => api.get("/orders/my",           { params }),
+  getOne: (id)         => api.get(`/orders/${id}`),
+  cancel: (id)         => api.put(`/orders/${id}/cancel`),
+  return: (id, reason) => api.put(`/orders/${id}/return`, { reason }),
 };
 
 export const cartAPI = {
-  get:    ()           => api.get("/cart"),
-  add:    (data)       => api.post("/cart/add",          data),
-  update: (id, qty)    => api.put(`/cart/update/${id}`,  { quantity: qty }),
-  remove: (id)         => api.delete(`/cart/remove/${id}`),
-  clear:  ()           => api.delete("/cart/clear"),
+  get:    ()        => api.get("/cart"),
+  add:    (data)    => api.post("/cart/add",         data),
+  update: (id, qty) => api.put(`/cart/update/${id}`, { quantity: qty }),
+  remove: (id)      => api.delete(`/cart/remove/${id}`),
+  clear:  ()        => api.delete("/cart/clear"),
 };
 
 export const wishlistAPI = {
@@ -76,8 +76,8 @@ export const couponAPI = {
 
 export const paymentAPI = {
   createRazorpayOrder: (amount) => api.post("/payments/razorpay/create-order", { amount }),
-  verifyRazorpay:      (data)   => api.post("/payments/razorpay/verify",       data),
-  createStripeIntent:  (amount) => api.post("/payments/stripe/create-intent",  { amount }),
+  verifyRazorpay:      (data)   => api.post("/payments/razorpay/verify",        data),
+  createStripeIntent:  (amount) => api.post("/payments/stripe/create-intent",   { amount }),
 };
 
 export const bannerAPI = {
